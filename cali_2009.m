@@ -27,23 +27,23 @@ w_vec_0 = [ 0 0 1;
     1 0 0;
     0 1 0]';
 
-%% norminal twist_matrix_0; size = 6 x 7              
+%% norminal twist_matrix_a; size = 6 x 7
 twist_matrix_n = [cross(q_vec_0,w_vec_0);w_vec_0];                          % nominal twist
 twist_matrix_copy = twist_matrix_n;                                         % copy of original nominal twist
-twist_matrix_0 = twist_matrix_n + rand(6,6)/joint_error_factor;             % actual twist
+twist_matrix_a = twist_matrix_n + rand(6,6)/joint_error_factor;             % actual twist
 P_c0_n = [0 2400 1000 1]';                                                  % nominal position of end tip
 P_c0_a = [P_c0_n(1:3)+rand(3,1)*EE_Error_gain;1];
 gst_a = P_c0_a;
 
 %% calculate normalized omega
-vec_norm = vecnorm(twist_matrix_0(4:6,1:6));                                % normalize rotational axis vectors
+vec_norm = vecnorm(twist_matrix_a(4:6,1:6));                                % normalize rotational axis vectors
 for i = 1:6
-    twist_matrix_0(:,i) = twist_matrix_0(:,i)./vec_norm(i);
+    twist_matrix_a(:,i) = twist_matrix_a(:,i)./vec_norm(i);
 end
 
 %% calculate v again(by def,v is always perpendicular to omega)
 for i=1:6
-    twist_matrix_0(1:3,i) = twist_matrix_0(1:3,i) - twist_matrix_0(1:3,i)'*twist_matrix_0(4:6,i)*twist_matrix_0(4:6,i);       % make v perpendicular to w
+    twist_matrix_a(1:3,i) = twist_matrix_a(1:3,i) - twist_matrix_a(1:3,i)'*twist_matrix_a(4:6,i)*twist_matrix_a(4:6,i);       % make v perpendicular to w
 end
 
 %% define number of points,the more the better for calculation,but for sampling,the more the worse.
@@ -71,7 +71,7 @@ while j<1000
     %% calculate A matrix and df*f^-1 (parameters identification)
     for i=1:num_of_pts                                                      % repeat num_of_pts times
         [Tn,~,~] = FK(twist_matrix_n,theta_random_vec(i,:));                % nominal transformation matrix
-        [Ta,~,~] = FK(twist_matrix_0,theta_random_vec(i,:));                % actual transfomation matrix
+        [Ta,~,~] = FK(twist_matrix_a,theta_random_vec(i,:));                % actual transfomation matrix
         P_n = Tn * P_c0_n;                                                  % nominal position of end point
         P_a = Ta * P_c0_a;                                                  % actual position of end point, simulation of measuring result
         dpc = P_a - P_n;                                                    % deviation of position
@@ -99,10 +99,32 @@ while j<1000
     end
     %% plot
     clf;                                                                    % clear plot
-    draw_manipulator(twist_matrix_0,gst_a,'r',measurment_type);             % draw robot frame with actual twist
-    draw_manipulator(twist_matrix_0,gst_n,'b',measurment_type);             % draw nominal axis
+    draw_manipulator(twist_matrix_a,gst_a,'r',measurment_type);             % draw robot frame with actual twist
+    draw_manipulator(twist_matrix_a,gst_n,'b',measurment_type);             % draw nominal axis
     drawnow;
 end
 %% plot again
 fig2 = figure(2);                                                           % create another window
 stem(norm_d_eta)                                                            % plot discrete data
+
+%% validation
+% validate the result using 100 configurations
+number_of_validation_samples = 100;
+random_joint_angles = (max_angle_vec - min_angle_vec) .* rand(number_of_validation_samples,6) + min_angle_vec;
+
+position_error = zeros(1,100);
+for i = 1:number_of_validation_samples
+    [T_n,~,~] = FK(twist_matrix_n,random_joint_angles(i,:));           % Tn calculation
+    [T_a,~,~] = FK(twist_matrix_a,random_joint_angles(i,:));             % Ta calculation
+    
+    Pc_a = T_a*gst_a;
+    Pc_n = T_n*gst_n;
+    
+    deviation = Pc_a - Pc_n;
+    position_error(i) = norm(deviation(1:3));
+end
+mean_position_error = mean(position_error)
+max_position_error = max(position_error)
+
+
+
