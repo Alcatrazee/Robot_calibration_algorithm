@@ -1,3 +1,4 @@
+function norm_k = cali_2016()
 %% statements
 % This program is a 6 axis robot calibration program base on paper 
 % 'POE-Based Robot Kinematic Calibration Using Axis Configuration Space and the Adjoint Error Model'
@@ -11,9 +12,9 @@
 %  3.Change End Effector error gain in line 16
 
 %% preprocess the thread
-close all
-clear;
-clc
+% close all
+% clear;
+% clc
 %% parameters definition
 
 measurment_type = 1;    % 1:pose 2:points
@@ -136,8 +137,8 @@ while j<1000
     drawnow;
 end
 %% plot again
-fig2 = figure(2);                                                           % open another window
-bar(norm_k)                                                                 % plot discrete figure
+% fig2 = figure(2);                                                           % open another window
+% bar(norm_k)                                                                 % plot discrete figure
 
 %% validation
 % validate the result using 100 configurations
@@ -177,7 +178,7 @@ elseif measurment_type==2
     max_position_error = max(position_error)
 end
 
-
+end
 
 
 

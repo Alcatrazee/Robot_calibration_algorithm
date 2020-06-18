@@ -1,3 +1,4 @@
+function norm_dp = cali_1995()
 %% preprocess the thread
 % close all
 % clear;
@@ -114,4 +115,4 @@ max_orientation_error = max(abs(orientation_error))
 mean_position_error = mean(position_error)
 max_position_error = max(position_error)
 
-
+end

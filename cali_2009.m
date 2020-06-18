@@ -1,7 +1,8 @@
+function norm_d_eta = cali_2009()
 %% close all unecessary windows and console and clear variables
-close all
-clear;
-clc
+% close all
+% clear;
+% clc
 %% parameters definition
 
 measurment_type = 2;    % 1:pose 2:points
@@ -126,5 +127,5 @@ end
 mean_position_error = mean(position_error)
 max_position_error = max(position_error)
 
-
+end
 
