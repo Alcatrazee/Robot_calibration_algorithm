@@ -6,9 +6,9 @@
 % efficiency,high accuracy,and can eliminate geometric error of a robot.
 
 % Alternatable variables:
-%  1.Change measurment type in line 15
-%  2.Change Joint Error factor in line 18
-%  3.Change End Effector gain in line 20
+%  1.Change measurment type in line 14
+%  2.Change Joint Error factor in line 15
+%  3.Change End Effector error gain in line 16
 
 %% preprocess the thread
 close all
@@ -40,9 +40,9 @@ g_st0 = [eye(3) [0 length_of_links(3)+length_of_links(4) length_of_links(1)+leng
     0 0 0 1];
 
 % norminal twist_matrix_0; size = 6 x 6
-twist_matrix_0 = [cross(q_vec_0,w_vec_0);w_vec_0];                              % nominal twist
-twist_matrix = twist_matrix_0 + rand(6,6)/joint_error_factor;                                                   % actual twist
-if(measurment_type==1)
+twist_matrix_0 = [cross(q_vec_0,w_vec_0);w_vec_0];                             % nominal twist
+twist_matrix = twist_matrix_0 + rand(6,6)/joint_error_factor;                  % actual twist
+if(measurment_type==1)                                                         % different gst0 based on measuring types
     g_st0_a = T_matrix(log_my(g_st0)+rand(6,1)/joint_error_factor);
     gst_a = g_st0_a;
 elseif measurment_type==2
@@ -50,7 +50,7 @@ elseif measurment_type==2
     Pc_0_n = [g_st0(1:3,4);1];
     gst_a = Pc_0_a;
 end
-twist_matrix(:,1:6) = twist_matrix(:,1:6) ./ vecnorm(twist_matrix(4:6,1:6));                 % normalize omega
+twist_matrix(:,1:6) = twist_matrix(:,1:6) ./ vecnorm(twist_matrix(4:6,1:6));   % normalize omega
 
 for i=1:6
     twist_matrix(1:3,i) = twist_matrix(1:3,i) - twist_matrix(1:3,i)'*twist_matrix(4:6,i)*twist_matrix(4:6,i);       % make v perpendicular to w
@@ -75,35 +75,38 @@ elseif measurment_type == 2
 end
 
 B = zeros(42,4);
-j=0;
-Q = zeros(6,42);
+j=0;                                    % times of iteration
+Q = zeros(6,42);                        
 d_Pc = zeros(num_of_pts*3,1);
+norm_k=[];                              % for norm of dp visialization
 
-norm_k=[]; % for norm of dp visialization
-%% composition
+%% identification
 while j<1000
-    for i=1:num_of_pts                                                      % repeat num_of_pts times
+    for i=1:num_of_pts                                                  % repeat num_of_pts times
+        % FK
         [T_n,~,~] = FK(twist_matrix_0,theta_random_vec(i,:));           % Tn calculation
         [T_a,~,~] = FK(twist_matrix,theta_random_vec(i,:));             % Ta calculation
         
-        Q = Q_matrix(twist_matrix_0,theta_random_vec(i,:));
+        Q = Q_matrix(twist_matrix_0,theta_random_vec(i,:));             % Q matrix calculation
         % choose different algorithm base on measurment type
         if(measurment_type==1)
-            T_n = T_n*g_st0;
+            T_n = T_n*g_st0;                                            % calculate pose of end effector
             T_a = T_a*g_st0_a;
-            df_f_inv(1+i*6-6:i*6) = log_my(T_a/T_n);                            % solve for log(df_f_inv)
-            A(1+i*6-6:i*6,:) = Q;
+            df_f_inv(1+i*6-6:i*6) = log_my(T_a/T_n);                    % solve for log(df_f_inv)
+            A(1+i*6-6:i*6,:) = Q;                                       % calculate [Q1|Q2|Q3|...Qn|Qst]
         elseif(measurment_type==2)
-            Pc_a = T_a*Pc_0_a;
-            Pc_n = T_n*Pc_0_n;
-            delta_pc = Pc_a - Pc_n;
-            df_f_inv(i*3-2:i*3) = delta_pc(1:3);
+            Pc_a = T_a*Pc_0_a;                                          % position of actual end tip
+            Pc_n = T_n*Pc_0_n;                                          % position of nominal end tip
+            delta_pc = Pc_a - Pc_n;                                     % deviation 
+            df_f_inv(i*3-2:i*3) = delta_pc(1:3);                        
             A(3*i-2:3*i,:) = [eye(3) -hat(Pc_n(1:3))]*Q;
         end
+        
     end
-    B = B_matrix(twist_matrix_0,measurment_type);
+    B = B_matrix(twist_matrix_0,measurment_type);                       % amazing matrix
     k = (A*B)\df_f_inv;
     norm(k)
+    
     % composition of twist
     for i=1:6
         twist_matrix_0(:,i) = Adjoint(T_matrix(B(i*6-5:i*6,i*4-3:i*4)*k(i*4-3:i*4)))*twist_matrix_0(:,i);
@@ -116,6 +119,7 @@ while j<1000
         Pc_0_n = [k(25:27)+Pc_0_n(1:3);1];
         gst_n = Pc_0_n;
     end
+    
     j=j+1;                                                                  % counter plus 1
     norm_k = [norm_k norm(k)];                                              % minimization target value calculation
     disp (norm(k))                                                          % show value of norm of dp
@@ -125,26 +129,26 @@ while j<1000
     elseif (norm(k)>1e4)||j>100
         break;
     end
-    
-    
     %% plot
     clf;
-    draw_manipulator(twist_matrix,gst_a,'r',measurment_type);                                     % draw robot frame with actual twist
-    draw_manipulator(twist_matrix_0,gst_n,'b',measurment_type);                                   % draw robot frame with norminal twist
+    draw_manipulator(twist_matrix,gst_a,'r',measurment_type);               % draw robot frame with actual twist
+    draw_manipulator(twist_matrix_0,gst_n,'b',measurment_type);             % draw robot frame with norminal twist
     drawnow;
 end
 %% plot again
 fig2 = figure(2);                                                           % open another window
 bar(norm_k)                                                                 % plot discrete figure
+
 %% validation
+% validate the result using 100 configurations
 number_of_validation_samples = 100;
 random_joint_angles = (max_angle_vec - min_angle_vec) .* rand(number_of_validation_samples,6) + min_angle_vec;
-if(measurment_type==1)
-    orientation_error = zeros(100,1);
-    position_error = zeros(100,1);
+if measurment_type==1
+    orientation_error = zeros(1,100);
+    position_error = zeros(1,100);
     for i = 1:number_of_validation_samples
-       [T_n,~,~] = FK(twist_matrix_0,theta_random_vec(i,:));           % Tn calculation
-       [T_a,~,~] = FK(twist_matrix,theta_random_vec(i,:));             % Ta calculation
+       [T_n,~,~] = FK(twist_matrix_0,random_joint_angles(i,:));           % Tn calculation
+       [T_a,~,~] = FK(twist_matrix,random_joint_angles(i,:));             % Ta calculation
        
        T_n = T_n*g_st0;
        T_a = T_a*g_st0_a;
@@ -153,8 +157,24 @@ if(measurment_type==1)
        orientation_error(i) = norm(deviation);
        position_error(i) = norm(T_a(1:3,4) - T_n(1:3,4));
     end
-    mean_orientation_error = mean(abs(orientation_error));
-    mean_abs_position_error = mean(abs())
+    mean_orientation_error = mean(abs(orientation_error))
+    max_orientation_error = max(abs(orientation_error))
+    mean_position_error = mean(position_error)
+    max_position_error = max(position_error)
+elseif measurment_type==2
+    position_error = zeros(1,100);
+    for i = 1:number_of_validation_samples
+       [T_n,~,~] = FK(twist_matrix_0,random_joint_angles(i,:));           % Tn calculation
+       [T_a,~,~] = FK(twist_matrix,random_joint_angles(i,:));             % Ta calculation
+       
+       Pc_a = T_a*Pc_0_a;
+       Pc_n = T_n*Pc_0_n;
+       
+       deviation = Pc_a - Pc_n;
+       position_error(i) = norm(deviation(1:3));
+    end
+    mean_position_error = mean(position_error)
+    max_position_error = max(position_error)
 end
 
 

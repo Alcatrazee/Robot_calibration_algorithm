@@ -26,9 +26,10 @@ for i = 1:6
 end
 
 if(measurment_type==1)
+    color_arrow = ['r' 'g' 'b'];
     for i = 1:3
-        point_set = [gst(1:3,4),gst(1:3,4) + gst(1:3,i)]';
-        plot3(point_set(:,1),point_set(:,2),point_set(:,3),color);
+        point_set = [gst(1:3,4),gst(1:3,4) + 300*gst(1:3,i)]';
+        plot3(point_set(:,1),point_set(:,2),point_set(:,3),color_arrow(i));
     end
 elseif (measurment_type==2)
     for i=1:num_of_pts
